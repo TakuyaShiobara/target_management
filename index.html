@@ -229,15 +229,36 @@
   function defaultCategoryData(){
     return { goal: '', items: new Array(8).fill(''), done: new Array(8).fill(false) };
   }
-  function defaultState(){
-    var cats = [
+  function defaultCategorySet(){
+    return [
       {id:'cat_work', name:'仕事'},
       {id:'cat_private', name:'プライベート'},
       {id:'cat_hobby', name:'趣味'}
     ];
-    var lifetime = {}, annual = {};
-    cats.forEach(function(c){ lifetime[c.id] = defaultCategoryData(); annual[c.id] = defaultCategoryData(); });
-    return { categories: cats, data: { lifetime: lifetime, annual: annual } };
+  }
+  function defaultScopeState(){
+    var cats = defaultCategorySet();
+    var catData = {};
+    cats.forEach(function(c){ catData[c.id] = defaultCategoryData(); });
+    return { categories: cats, catData: catData };
+  }
+  function defaultState(){
+    return { data: { lifetime: defaultScopeState(), annual: defaultScopeState() } };
+  }
+  // migrate the old shape (one shared category list reused by both scopes)
+  // into the new shape (each scope keeps its own independent category list).
+  function migrateOldState(old){
+    var ns = { data: { lifetime: {categories:[], catData:{}}, annual: {categories:[], catData:{}} } };
+    ['lifetime','annual'].forEach(function(scope){
+      var cats = (old.categories || []).map(function(c){ return {id:c.id, name:c.name}; });
+      var catData = {};
+      (old.categories || []).forEach(function(c){
+        var existing = (old.data && old.data[scope]) ? old.data[scope][c.id] : null;
+        catData[c.id] = existing || defaultCategoryData();
+      });
+      ns.data[scope] = { categories: cats, catData: catData };
+    });
+    return ns;
   }
 
   var state = null;
@@ -245,32 +266,33 @@
   var activeCatByScope = { lifetime: null, annual: null };
   var editing = null;
 
+  function getScopeCategories(scope){ return state.data[scope].categories; }
   function getCatData(scope, catId){
-    if (!state.data[scope][catId]) state.data[scope][catId] = defaultCategoryData();
-    return state.data[scope][catId];
+    var sd = state.data[scope];
+    if (!sd.catData[catId]) sd.catData[catId] = defaultCategoryData();
+    return sd.catData[catId];
   }
   function getActiveCat(){
+    var cats = getScopeCategories(activeScope);
     var cur = activeCatByScope[activeScope];
-    if (cur && state.categories.some(function(c){ return c.id===cur; })) return cur;
-    var first = state.categories[0];
+    if (cur && cats.some(function(c){ return c.id===cur; })) return cur;
+    var first = cats[0];
     activeCatByScope[activeScope] = first ? first.id : null;
     return activeCatByScope[activeScope];
   }
   function addCategory(name){
     var id = 'cat_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-    state.categories.push({id:id, name:name});
-    state.data.lifetime[id] = defaultCategoryData();
-    state.data.annual[id] = defaultCategoryData();
+    var sd = state.data[activeScope];
+    sd.categories.push({id:id, name:name});
+    sd.catData[id] = defaultCategoryData();
     persist();
   }
   function deleteCategory(id){
-    if (state.categories.length<=1) return;
-    state.categories = state.categories.filter(function(c){ return c.id!==id; });
-    delete state.data.lifetime[id];
-    delete state.data.annual[id];
-    ['lifetime','annual'].forEach(function(scope){
-      if (activeCatByScope[scope]===id) activeCatByScope[scope]=null;
-    });
+    var sd = state.data[activeScope];
+    if (sd.categories.length<=1) return;
+    sd.categories = sd.categories.filter(function(c){ return c.id!==id; });
+    delete sd.catData[id];
+    if (activeCatByScope[activeScope]===id) activeCatByScope[activeScope]=null;
     persist();
   }
 
@@ -291,15 +313,29 @@
   async function loadState(){
     try{
       var raw = localStorage.getItem('mandala_state_v2');
-      state = raw ? JSON.parse(raw) : defaultState();
+      if (raw){
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.categories)){
+          state = migrateOldState(parsed);
+          persist();
+        } else if (parsed && parsed.data){
+          state = parsed;
+        } else {
+          state = defaultState();
+        }
+      } else {
+        state = defaultState();
+      }
     }catch(e){ state = defaultState(); }
-    if (!state || !state.categories || !state.categories.length) state = defaultState();
-    if (!state.data) state.data = {lifetime:{}, annual:{}};
-    if (!state.data.lifetime) state.data.lifetime = {};
-    if (!state.data.annual) state.data.annual = {};
-    state.categories.forEach(function(c){
-      if (!state.data.lifetime[c.id]) state.data.lifetime[c.id] = defaultCategoryData();
-      if (!state.data.annual[c.id]) state.data.annual[c.id] = defaultCategoryData();
+
+    if (!state || !state.data) state = defaultState();
+    ['lifetime','annual'].forEach(function(scope){
+      if (!state.data[scope]) state.data[scope] = defaultScopeState();
+      if (!state.data[scope].categories || !state.data[scope].categories.length) state.data[scope].categories = defaultCategorySet();
+      if (!state.data[scope].catData) state.data[scope].catData = {};
+      state.data[scope].categories.forEach(function(c){
+        if (!state.data[scope].catData[c.id]) state.data[scope].catData[c.id] = defaultCategoryData();
+      });
     });
   }
 
@@ -323,19 +359,20 @@
       '</div>';
   }
   function aggregateStats(scope){
+    var cats = getScopeCategories(scope);
     var totalFilled=0, totalDone=0;
-    state.categories.forEach(function(c){
+    cats.forEach(function(c){
       var d = getCatData(scope, c.id);
       totalFilled += d.items.filter(function(t){ return t && t.trim(); }).length;
       totalDone += d.done.filter(Boolean).length;
     });
-    var catsAchieved = state.categories.filter(function(c){ return catFullyDone(getCatData(scope, c.id)); }).length;
+    var catsAchieved = cats.filter(function(c){ return catFullyDone(getCatData(scope, c.id)); }).length;
     var pct = totalFilled ? Math.round(totalDone/totalFilled*100) : 0;
-    return {pct:pct, totalDone:totalDone, totalFilled:totalFilled, catsAchieved:catsAchieved, totalCats: state.categories.length};
+    return {pct:pct, totalDone:totalDone, totalFilled:totalFilled, catsAchieved:catsAchieved, totalCats: cats.length};
   }
   function renderStats(scope){
     var s = aggregateStats(scope);
-    var dots = state.categories.map(function(c){
+    var dots = getScopeCategories(scope).map(function(c){
       return '<span class="dot ' + (catFullyDone(getCatData(scope,c.id))?'on':'') + '"></span>';
     }).join('');
     return '<div class="stat-plaque">' +
@@ -352,7 +389,7 @@
   }
   function renderCategoryTabs(){
     var activeCat = getActiveCat();
-    var pills = state.categories.map(function(c){
+    var pills = getScopeCategories(activeScope).map(function(c){
       var d = getCatData(activeScope, c.id);
       var full = catFullyDone(d);
       return '<div class="cat-pill ' + (c.id===activeCat?'active':'') + '" data-action="switch-cat" data-cat="' + c.id + '">' +
@@ -365,7 +402,7 @@
     '</div>';
   }
   function renderBoard(scope, catId){
-    var cat = state.categories.filter(function(c){ return c.id===catId; })[0];
+    var cat = getScopeCategories(scope).filter(function(c){ return c.id===catId; })[0];
     var d = getCatData(scope, catId);
     var lines = countLines(achievedMapFromData(d));
     var cells = '';
@@ -392,7 +429,7 @@
   }
   function renderCategoryList(scope){
     var activeCat = getActiveCat();
-    var rows = state.categories.map(function(c){
+    var rows = getScopeCategories(scope).map(function(c){
       var d = getCatData(scope, c.id);
       var done = d.done.filter(Boolean).length;
       var full = catFullyDone(d);
@@ -418,7 +455,7 @@
     return '';
   }
   function renderCatManageModal(){
-    var rows = state.categories.map(function(c){
+    var rows = getScopeCategories(activeScope).map(function(c){
       return '<div class="cat-manage-row">' +
         '<input data-cat-input="' + c.id + '" value="' + esc(c.name) + '" maxlength="10" />' +
         '<button class="cat-manage-del" data-action="delete-cat" data-cat="' + c.id + '" aria-label="削除">✕</button>' +
@@ -500,7 +537,7 @@
     inputs.forEach(function(inp){
       var id = inp.getAttribute('data-cat-input');
       var name = inp.value.trim().slice(0,10);
-      var cat = state.categories.filter(function(c){ return c.id===id; })[0];
+      var cat = getScopeCategories(activeScope).filter(function(c){ return c.id===id; })[0];
       if (cat && name) cat.name = name;
     });
     persist();
@@ -565,7 +602,7 @@
     if (d.done[idx]){
       if (afterFull && !beforeFull){
         celebrateCategory();
-        var allDone = state.categories.every(function(c){ return catFullyDone(getCatData(activeScope, c.id)); });
+        var allDone = getScopeCategories(activeScope).every(function(c){ return catFullyDone(getCatData(activeScope, c.id)); });
         if (allDone) setTimeout(celebrateAll, 650);
       } else if (afterLines > beforeLines){
         celebrateLine();
