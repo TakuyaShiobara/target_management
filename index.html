@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#1b140f" />
+<title>目標盤 - マンダラチャート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sumi:#1b140f;
+    --sumi-2:#15100c;
+    --panel:#2a1f16;
+    --panel-2:#352819;
+    --kin:#c9a24b;
+    --kin-dim:#8a6f3c;
+    --shu:#d8472c;
+    --kinari:#f4e9d6;
+    --kinari-soft:rgba(244,233,214,.62);
+    --kinari-faint:rgba(244,233,214,.30);
+    --line:rgba(201,162,75,.30);
+    --font-d:'Shippori Mincho',serif;
+    --font-b:'Zen Kaku Gothic New',-apple-system,'Hiragino Sans',sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 50% -8%, rgba(201,162,75,.12), transparent 55%),
+      var(--sumi);
+    color:var(--kinari);
+    font-family:var(--font-b);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+  }
+  button{font-family:inherit;}
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    padding:max(22px,env(safe-area-inset-top)) 18px max(32px,env(safe-area-inset-bottom));
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .loading{padding:80px 0;text-align:center;color:var(--kinari-soft);font-size:14px;letter-spacing:.05em;}
+
+  /* header */
+  .head{text-align:center;padding:4px 0 2px;}
+  .eyebrow{font-size:11px;letter-spacing:.32em;color:var(--kin-dim);font-weight:700;}
+  .head h1{margin:6px 0 0;font-family:var(--font-d);font-weight:700;font-size:21px;color:var(--kinari);letter-spacing:.04em;}
+  .head .rule{width:46px;height:1px;background:var(--kin);margin:10px auto 0;opacity:.6;}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px;}
+  .tab{flex:1;text-align:center;padding:11px 0;border-radius:11px;font-weight:700;font-size:14px;color:var(--kinari-soft);cursor:pointer;transition:background .2s,color .2s;}
+  .tab.active{background:linear-gradient(160deg,var(--kin),#a9813a);color:#241a0e;box-shadow:0 4px 14px rgba(201,162,75,.3);}
+
+  /* stat plaque */
+  .stat-plaque{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:12px;}
+  .ultimate-line{display:flex;align-items:baseline;gap:8px;cursor:pointer;}
+  .ultimate-tag{flex:0 0 auto;font-size:11px;color:var(--kin-dim);font-weight:700;letter-spacing:.1em;border:1px solid var(--kin-dim);border-radius:5px;padding:2px 6px;}
+  .ultimate-text{font-family:var(--font-d);font-size:15px;color:var(--kinari);line-height:1.4;}
+  .ultimate-text.ph{color:var(--kinari-faint);font-family:var(--font-b);font-size:13px;}
+  .stat-top{display:flex;align-items:baseline;gap:10px;}
+  .stat-num{font-family:var(--font-d);font-size:40px;font-weight:800;color:var(--kin);letter-spacing:.02em;}
+  .stat-label{font-size:12px;color:var(--kinari-soft);letter-spacing:.06em;}
+  .dotrow{display:flex;gap:5px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--kinari-faint);}
+  .dot.on{background:var(--kin);box-shadow:0 0 6px rgba(201,162,75,.7);}
+  .stat-sub{font-size:12px;color:var(--kinari-soft);display:flex;gap:14px;flex-wrap:wrap;}
+
+  /* board */
+  .board-wrap{display:flex;justify-content:center;}
+  .board{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(3,1fr);
+    gap:8px;
+    aspect-ratio:1/1;
+    padding:14px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+  }
+  .cell{
+    position:relative;
+    border-radius:13px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:8px 6px;
+    font-size:12.5px;
+    line-height:1.28;
+    cursor:pointer;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--kinari);
+    overflow:hidden;
+    -webkit-line-clamp:3;
+  }
+  .cell:focus-visible{outline:2px solid var(--kin);outline-offset:2px;}
+  .cell.center{
+    background:linear-gradient(160deg,var(--panel-2),var(--sumi-2));
+    border-color:var(--kin-dim);
+    box-shadow:0 0 0 1px rgba(201,162,75,.22) inset,0 0 22px rgba(201,162,75,.16);
+    font-family:var(--font-d);
+    font-weight:700;
+    color:var(--kin);
+    font-size:13.5px;
+  }
+  .cell.empty .cell-text{color:var(--kinari-faint);}
+  .cell .ph{color:var(--kinari-faint);font-style:normal;}
+  .cell-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
+  .cell-progress{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:9.5px;color:var(--kin-dim);font-weight:700;letter-spacing:.04em;}
+  .cell.major.filled{padding-bottom:18px;}
+  .pencil{
+    position:absolute;top:4px;right:5px;
+    width:18px;height:18px;border-radius:6px;
+    border:none;background:rgba(244,233,214,.08);
+    color:var(--kinari-soft);font-size:10px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+  }
+  .pencil:focus-visible{outline:2px solid var(--kin);}
+  .stamp-mark{
+    position:absolute;
+    border:2px solid var(--shu);
+    color:var(--shu);
+    font-weight:900;
+    border-radius:8px;
+    background:rgba(27,20,15,.45);
+    transform:rotate(-11deg);
+    letter-spacing:.05em;
+    pointer-events:none;
+  }
+  .stamp-mark:not(.small){bottom:8px;right:8px;font-size:11px;padding:2px 7px;}
+  .stamp-mark.small{bottom:5px;right:5px;font-size:9px;padding:1px 5px;border-width:1.5px;}
+
+  /* detail */
+  .detail-bar{display:flex;align-items:center;justify-content:space-between;padding:0 2px;}
+  .back{background:none;border:none;color:var(--kin);font-size:14px;font-weight:700;cursor:pointer;padding:6px 2px;}
+  .back:focus-visible{outline:2px solid var(--kin);}
+  .line-status{font-size:12.5px;color:var(--kinari-soft);}
+
+  /* minimap */
+  .minimap-wrap{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;}
+  .minimap-title{font-size:11px;letter-spacing:.1em;color:var(--kinari-soft);margin-bottom:10px;}
+  .minimap{display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);gap:2px;aspect-ratio:1/1;}
+  .mm-cell{background:var(--panel-2);border-radius:2px;}
+  .mm-cell.filled{box-shadow:0 0 0 1px var(--kin-dim) inset;}
+  .mm-cell.done{background:var(--kin);}
+  .mm-cell.mm-center{box-shadow:0 0 0 1px var(--kin) inset;}
+  .mm-cell.sep-r{margin-right:2px;}
+  .mm-cell.sep-b{margin-bottom:2px;}
+
+  /* modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,7,5,.74);display:flex;align-items:center;justify-content:center;z-index:60;padding:24px;}
+  .modal{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px;}
+  .modal h3{margin:0;font-family:var(--font-d);font-size:16px;color:var(--kin);font-weight:700;}
+  .modal input{background:var(--sumi-2);border:1px solid var(--line);border-radius:10px;padding:13px 14px;color:var(--kinari);font-size:15px;font-family:var(--font-b);width:100%;}
+  .modal input:focus{outline:2px solid var(--kin);outline-offset:1px;}
+  .modal-actions{display:flex;gap:10px;}
+  .btn{flex:1;padding:12px 0;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--kinari);font-weight:700;font-size:14px;cursor:pointer;}
+  .btn:focus-visible{outline:2px solid var(--kin);}
+  .btn.primary{background:linear-gradient(160deg,var(--kin),#a9813a);color:#241a0e;border-color:transparent;}
+  .btn-text{background:none;border:none;color:var(--shu);font-size:12.5px;text-align:center;padding:2px;cursor:pointer;}
+
+  /* fx */
+  #fx-layer{position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden;}
+  .stamp-pop{
+    position:absolute;top:42%;left:50%;
+    transform:translate(-50%,-50%) rotate(-7deg) scale(0);
+    border:4px solid var(--shu);color:var(--shu);
+    font-family:var(--font-d);font-weight:800;
+    padding:12px 26px;border-radius:10px;
+    background:rgba(27,20,15,.6);
+    white-space:nowrap;
+    animation:stampIn .5s cubic-bezier(.2,1.5,.4,1) forwards;
+  }
+  .stamp-pop.big{font-size:20px;padding:16px 30px;}
+  .stamp-pop.small{font-size:15px;}
+  .stamp-pop.grand{font-size:26px;padding:20px 36px;border-width:5px;}
+  .stamp-pop.fadeout{animation:stampOut .4s ease forwards;}
+  .stamp-pop.reduced{animation:none;transform:translate(-50%,-50%) rotate(-7deg) scale(1);opacity:1;}
+  .stamp-pop.reduced.fadeout{animation:fadeOnly .4s ease forwards;}
+  @keyframes stampIn{0%{transform:translate(-50%,-50%) rotate(-7deg) scale(2.4);opacity:0;}60%{transform:translate(-50%,-50%) rotate(-7deg) scale(.9);opacity:1;}100%{transform:translate(-50%,-50%) rotate(-7deg) scale(1);opacity:1;}}
+  @keyframes stampOut{to{opacity:0;transform:translate(-50%,-50%) rotate(-7deg) scale(.85);}}
+  @keyframes fadeOnly{to{opacity:0;}}
+  .confetti{position:absolute;width:6px;height:13px;top:-20px;border-radius:2px;animation-name:fall;animation-timing-function:cubic-bezier(.3,.6,.4,1);animation-fill-mode:forwards;}
+  @keyframes fall{to{transform:translateY(var(--fall-y)) rotate(var(--rot));opacity:0;}}
+
+  @media (prefers-reduced-motion:reduce){
+    .confetti{display:none;}
+  }
+</style>
+</head>
+<body>
+  <div id="app"><div class="loading">読み込み中…</div></div>
+  <div id="fx-layer"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var OUTER = [0,1,2,3,5,6,7,8];
+  var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function idxOfPos(pos){ return OUTER.indexOf(pos); }
+
+  function defaultChart(){
+    return {
+      ultimate: '',
+      majors: new Array(8).fill(''),
+      subs: Array.from({length:8}, function(){ return new Array(8).fill(''); }),
+      done: Array.from({length:8}, function(){ return new Array(8).fill(false); })
+    };
+  }
+
+  var charts = { lifetime: null, annual: null };
+  var activeTab = 'lifetime';
+  var view = { mode: 'overview' };
+  var editing = null;
+
+  function currentChart(){ return charts[activeTab]; }
+
+  function majorAchieved(chart, m){ return chart.done[m].every(Boolean); }
+  function ultimateAchieved(chart){
+    for (var m=0; m<8; m++){ if(!majorAchieved(chart,m)) return false; }
+    return true;
+  }
+  function topAchievedMap(chart){
+    var map = {4:true};
+    OUTER.forEach(function(pos){ var m = idxOfPos(pos); map[pos] = majorAchieved(chart,m); });
+    return map;
+  }
+  function blockAchievedMap(chart, m){
+    var map = {4:true};
+    OUTER.forEach(function(pos){ var s = idxOfPos(pos); map[pos] = !!chart.done[m][s]; });
+    return map;
+  }
+  function countLines(map){
+    return LINES.filter(function(line){ return line.every(function(p){ return map[p]; }); }).length;
+  }
+  function filledSubsCount(chart){
+    var f=0;
+    for (var m=0;m<8;m++) for (var s=0;s<8;s++) if (chart.subs[m][s] && chart.subs[m][s].trim()) f++;
+    return f;
+  }
+  function doneSubsCount(chart){
+    var d=0;
+    for (var m=0;m<8;m++) for (var s=0;s<8;s++) if (chart.done[m][s]) d++;
+    return d;
+  }
+  function majorsAchievedCount(chart){
+    var c=0;
+    for (var m=0;m<8;m++) if (majorAchieved(chart,m)) c++;
+    return c;
+  }
+
+  async function loadAll(){
+    var names = ['lifetime','annual'];
+    for (var i=0;i<names.length;i++){
+      var name = names[i];
+      try{
+        var raw = localStorage.getItem('mandala_'+name);
+        charts[name] = raw ? JSON.parse(raw) : defaultChart();
+      }catch(e){
+        charts[name] = defaultChart();
+      }
+    }
+  }
+  async function persist(name){
+    try{
+      localStorage.setItem('mandala_'+name, JSON.stringify(charts[name]));
+    }catch(e){
+      console.error('保存に失敗しました', e);
+    }
+  }
+
+  function esc(str){
+    return (str || '').replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+
+  function renderHeader(){
+    return '<header class="head">' +
+      '<div class="eyebrow">目標盤</div>' +
+      '<h1>マンダラチャート</h1>' +
+      '<div class="rule"></div>' +
+      '</header>';
+  }
+
+  function renderTabs(){
+    return '<div class="tabs">' +
+      '<div class="tab ' + (activeTab==='lifetime'?'active':'') + '" data-action="switch-tab" data-tab="lifetime">生涯</div>' +
+      '<div class="tab ' + (activeTab==='annual'?'active':'') + '" data-action="switch-tab" data-tab="annual">今年</div>' +
+      '</div>';
+  }
+
+  function renderStats(chart){
+    var filled = filledSubsCount(chart);
+    var done = doneSubsCount(chart);
+    var pct = filled ? Math.round(done/filled*100) : 0;
+    var majorsDone = majorsAchievedCount(chart);
+    var topLines = countLines(topAchievedMap(chart));
+    var dots = '';
+    for (var i=0;i<8;i++){ dots += '<span class="dot ' + (majorAchieved(chart,i)?'on':'') + '"></span>'; }
+    var ultText = chart.ultimate ? esc(chart.ultimate) : '<span class="ph">タップして目標を設定</span>';
+    return '<div class="stat-plaque">' +
+      '<div class="ultimate-line" data-action="open-ultimate">' +
+        '<span class="ultimate-tag">目標</span>' +
+        '<span class="ultimate-text ' + (chart.ultimate?'':'ph') + '">' + ultText + '</span>' +
+      '</div>' +
+      '<div class="stat-top">' +
+        '<div class="stat-num">' + pct + '%</div>' +
+        '<div class="stat-label">達成率</div>' +
+      '</div>' +
+      '<div class="dotrow">' + dots + '</div>' +
+      '<div class="stat-sub">' +
+        '<span>中目標 ' + majorsDone + '/8</span>' +
+        '<span>ライン ' + topLines + '/8</span>' +
+        '<span>アクション ' + done + '/' + filled + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderOverview(chart){
+    var cells = '';
+    for (var pos=0; pos<9; pos++){
+      if (pos===4){
+        var u = chart.ultimate ? esc(chart.ultimate) : '<span class="ph">タップして<br>目標を設定</span>';
+        cells += '<div class="cell center" data-action="open-ultimate" tabindex="0">' + u + '</div>';
+      } else {
+        var m = idxOfPos(pos);
+        var text = chart.majors[m];
+        var doneCount = chart.done[m].filter(Boolean).length;
+        var achieved = majorAchieved(chart, m);
+        cells += '<div class="cell major ' + (text?'filled':'empty') + '" data-action="goto-major" data-m="' + m + '" tabindex="0">' +
+          (text ? '<button class="pencil" data-action="edit-major" data-m="' + m + '" aria-label="編集">✎</button>' : '') +
+          '<div class="cell-text">' + (text ? esc(text) : '<span class="ph">タップして<br>設定</span>') + '</div>' +
+          (text ? '<div class="cell-progress">' + doneCount + '/8</div>' : '') +
+          (achieved ? '<div class="stamp-mark">達成</div>' : '') +
+        '</div>';
+      }
+    }
+    return '<div class="board-wrap"><div class="board">' + cells + '</div></div>';
+  }
+
+  function renderDetail(chart, m){
+    var map = blockAchievedMap(chart, m);
+    var lines = countLines(map);
+    var cells = '';
+    for (var pos=0; pos<9; pos++){
+      if (pos===4){
+        var lab = chart.majors[m] ? esc(chart.majors[m]) : '<span class="ph">中目標</span>';
+        cells += '<div class="cell center" data-action="edit-major" data-m="' + m + '" tabindex="0">' + lab + '</div>';
+      } else {
+        var s = idxOfPos(pos);
+        var text = chart.subs[m][s];
+        var isDone = chart.done[m][s];
+        cells += '<div class="cell sub ' + (text?'filled':'empty') + '" data-action="sub-cell" data-m="' + m + '" data-s="' + s + '" tabindex="0">' +
+          (text ? '<button class="pencil" data-action="edit-sub" data-m="' + m + '" data-s="' + s + '" aria-label="編集">✎</button>' : '') +
+          '<div class="cell-text">' + (text ? esc(text) : '<span class="ph">タップして<br>設定</span>') + '</div>' +
+          (isDone ? '<div class="stamp-mark small">済</div>' : '') +
+        '</div>';
+      }
+    }
+    return '<div class="detail-bar">' +
+        '<button class="back" data-action="back">← 戻る</button>' +
+        '<div class="line-status">ライン ' + lines + '/8 達成</div>' +
+      '</div>' +
+      '<div class="board-wrap"><div class="board">' + cells + '</div></div>';
+  }
+
+  function renderMiniMap(chart){
+    var blocks = '';
+    for (var bpos=0; bpos<9; bpos++){
+      for (var cpos=0; cpos<9; cpos++){
+        var filled=false, done=false;
+        if (bpos===4){
+          if (cpos===4){ filled = !!chart.ultimate; done = ultimateAchieved(chart); }
+          else { var m1 = idxOfPos(cpos); filled = !!chart.majors[m1]; done = majorAchieved(chart,m1); }
+        } else {
+          var m2 = idxOfPos(bpos);
+          if (cpos===4){ filled = !!chart.majors[m2]; done = majorAchieved(chart,m2); }
+          else { var s2 = idxOfPos(cpos); filled = !!chart.subs[m2][s2]; done = !!chart.done[m2][s2]; }
+        }
+        var blockRow = Math.floor(bpos/3), blockCol = bpos%3;
+        var cellRow = Math.floor(cpos/3), cellCol = cpos%3;
+        var gridRow = blockRow*3+cellRow+1;
+        var gridCol = blockCol*3+cellCol+1;
+        var sep = (cellCol===2?' sep-r':'') + (cellRow===2?' sep-b':'');
+        var center = (cpos===4 && bpos===4) ? ' mm-center' : '';
+        var nav = (bpos===4) ? '' : ('data-action="goto-major" data-m="' + idxOfPos(bpos) + '"');
+        blocks += '<div class="mm-cell' + (filled?' filled':'') + (done?' done':'') + center + sep + '" style="grid-row:' + gridRow + ';grid-column:' + gridCol + '" ' + nav + '></div>';
+      }
+    }
+    return '<div class="minimap-wrap"><div class="minimap-title">全体図</div><div class="minimap">' + blocks + '</div></div>';
+  }
+
+  function getEditorValue(){
+    var chart = currentChart();
+    if (editing.type==='ultimate') return chart.ultimate;
+    if (editing.type==='major') return chart.majors[editing.m];
+    if (editing.type==='sub') return chart.subs[editing.m][editing.s];
+    return '';
+  }
+  function getEditorTitle(){
+    if (editing.type==='ultimate') return activeTab==='lifetime' ? '生涯の目標' : '今年の目標';
+    if (editing.type==='major') return '中目標';
+    return '小目標（アクション）';
+  }
+
+  function renderModal(){
+    if (!editing) return '';
+    var val = esc(getEditorValue());
+    var title = getEditorTitle();
+    var showClear = !!getEditorValue();
+    return '<div class="modal-overlay">' +
+      '<div class="modal">' +
+        '<h3>' + title + '</h3>' +
+        '<input id="modal-input" type="text" maxlength="40" value="' + val + '" placeholder="目標を入力" />' +
+        '<div class="modal-actions">' +
+          '<button class="btn" data-action="modal-cancel">キャンセル</button>' +
+          '<button class="btn primary" data-action="modal-save">保存</button>' +
+        '</div>' +
+        (showClear ? '<button class="btn-text" data-action="modal-clear">この項目を削除</button>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  function render(){
+    var chart = currentChart();
+    var html = renderHeader() + renderTabs() + renderStats(chart) +
+      (view.mode==='overview' ? renderOverview(chart) : renderDetail(chart, view.m)) +
+      (view.mode==='overview' ? renderMiniMap(chart) : '') +
+      renderModal();
+    document.getElementById('app').innerHTML = html;
+    if (editing){
+      var inp = document.getElementById('modal-input');
+      if (inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }
+  }
+
+  function openEditor(target){ editing = target; render(); }
+
+  function saveEditor(){
+    var inp = document.getElementById('modal-input');
+    var val = inp ? inp.value.trim().slice(0,40) : '';
+    var chart = currentChart();
+    if (editing.type==='ultimate') chart.ultimate = val;
+    else if (editing.type==='major') chart.majors[editing.m] = val;
+    else if (editing.type==='sub'){
+      var had = chart.subs[editing.m][editing.s] && chart.subs[editing.m][editing.s].trim();
+      chart.subs[editing.m][editing.s] = val;
+      if (!val && had) chart.done[editing.m][editing.s] = false;
+    }
+    persist(activeTab);
+    editing = null;
+    render();
+  }
+  function clearEditor(){
+    var chart = currentChart();
+    if (editing.type==='ultimate') chart.ultimate = '';
+    else if (editing.type==='major') chart.majors[editing.m] = '';
+    else if (editing.type==='sub'){ chart.subs[editing.m][editing.s] = ''; chart.done[editing.m][editing.s] = false; }
+    persist(activeTab);
+    editing = null;
+    render();
+  }
+
+  function spawnStamp(text, size){
+    var fx = document.getElementById('fx-layer');
+    var el = document.createElement('div');
+    el.className = 'stamp-pop ' + size + (reduceMotion ? ' reduced' : '');
+    el.textContent = text;
+    fx.appendChild(el);
+    var holdMs = size==='grand' ? 1700 : 1100;
+    var removeMs = size==='grand' ? 2200 : 1550;
+    setTimeout(function(){ el.classList.add('fadeout'); }, holdMs);
+    setTimeout(function(){ el.remove(); }, removeMs);
+  }
+  function spawnConfetti(n){
+    if (reduceMotion) return;
+    var fx = document.getElementById('fx-layer');
+    var colors = ['var(--kin)','var(--shu)','var(--kinari)'];
+    for (var i=0;i<n;i++){
+      var el = document.createElement('div');
+      el.className = 'confetti';
+      var left = Math.random()*100;
+      var fallY = 70+Math.random()*30;
+      var rot = (Math.random()*720-360);
+      var dur = 1.1+Math.random()*0.9;
+      var delay = Math.random()*0.15;
+      el.style.left = left+'vw';
+      el.style.background = colors[i%3];
+      el.style.setProperty('--fall-y', fallY+'vh');
+      el.style.setProperty('--rot', rot+'deg');
+      el.style.animationDuration = dur+'s';
+      el.style.animationDelay = delay+'s';
+      fx.appendChild(el);
+      setTimeout(function(node){ return function(){ node.remove(); }; }(el), (dur+delay+0.2)*1000);
+    }
+  }
+  function celebrateLine(){ spawnStamp('ライン達成','small'); spawnConfetti(18); }
+  function celebrateMajor(){ spawnStamp('目標達成','big'); spawnConfetti(34); }
+  function celebrateUltimate(){ spawnStamp('全達成','grand'); spawnConfetti(60); }
+
+  function toggleSub(m, s){
+    var chart = currentChart();
+    var beforeBlockLines = countLines(blockAchievedMap(chart, m));
+    var beforeMajorDone = majorAchieved(chart, m);
+    var beforeTopLines = countLines(topAchievedMap(chart));
+    var beforeUltimate = ultimateAchieved(chart);
+
+    chart.done[m][s] = !chart.done[m][s];
+
+    var afterBlockLines = countLines(blockAchievedMap(chart, m));
+    var afterMajorDone = majorAchieved(chart, m);
+    var afterTopLines = countLines(topAchievedMap(chart));
+    var afterUltimate = ultimateAchieved(chart);
+
+    persist(activeTab);
+    render();
+
+    if (chart.done[m][s]){
+      if (afterUltimate && !beforeUltimate){
+        celebrateUltimate();
+      } else if (afterMajorDone && !beforeMajorDone){
+        celebrateMajor();
+        if (afterTopLines > beforeTopLines) setTimeout(celebrateLine, 650);
+      } else if (afterBlockLines > beforeBlockLines){
+        celebrateLine();
+      }
+    }
+  }
+
+  function handleClick(e){
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var action = el.dataset.action;
+    var m = el.dataset.m !== undefined && el.dataset.m !== '' ? parseInt(el.dataset.m,10) : null;
+    var s = el.dataset.s !== undefined && el.dataset.s !== '' ? parseInt(el.dataset.s,10) : null;
+
+    if (action==='switch-tab'){ activeTab = el.dataset.tab; view = {mode:'overview'}; render(); }
+    else if (action==='goto-major'){
+      if (m===null) return;
+      var chart = currentChart();
+      if (!chart.majors[m] || !chart.majors[m].trim()) openEditor({type:'major', m:m});
+      else { view = {mode:'detail', m:m}; render(); }
+    }
+    else if (action==='back'){ view = {mode:'overview'}; render(); }
+    else if (action==='open-ultimate'){ openEditor({type:'ultimate'}); }
+    else if (action==='edit-major'){ openEditor({type:'major', m:m}); }
+    else if (action==='sub-cell'){
+      var chart2 = currentChart();
+      if (!chart2.subs[m][s] || !chart2.subs[m][s].trim()) openEditor({type:'sub', m:m, s:s});
+      else toggleSub(m, s);
+    }
+    else if (action==='edit-sub'){ openEditor({type:'sub', m:m, s:s}); }
+    else if (action==='modal-cancel'){ editing = null; render(); }
+    else if (action==='modal-save'){ saveEditor(); }
+    else if (action==='modal-clear'){ clearEditor(); }
+  }
+
+  document.addEventListener('click', handleClick);
+  document.addEventListener('keydown', function(e){
+    if (!editing) return;
+    if (e.key==='Enter') saveEditor();
+    else if (e.key==='Escape'){ editing = null; render(); }
+  });
+
+  async function init(){
+    await loadAll();
+    render();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
